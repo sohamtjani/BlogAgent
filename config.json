@@ -1,0 +1,7 @@
+{
+  "ollama_url": "http://localhost:11434",
+  "ollama_model": "llama3",
+  "wp_url": "https://example.com",
+  "wp_user": "founder",
+  "wp_app_password": "dummy"
+}
