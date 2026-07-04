@@ -1,4 +1,4 @@
-# Founder Voice Agent
+#FounderVoice - A Blog-gen Solution for Thought Leaders
 
 A terminal tool that turns the founder's own raw takes into thought-leadership
 posts in his voice, and publishes them to WordPress — at zero recurring cost.
