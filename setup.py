@@ -120,7 +120,7 @@ def setup_wordpress(current_cfg: dict) -> dict:
     print("\nTo generate an Application Password:")
     print("  1. Log into your WordPress site's admin dashboard.")
     print("  2. Go to Users -> Profile (or Users -> your username).")
-    print("  3. Scroll to 'Application Passwords', enter a name like 'founder-agent',")
+    print("  3. Scroll to 'Application Passwords', enter a name like 'voice-agent',")
     print("     and click 'Add New Application Password'.")
     print("  4. Copy the generated password (it's only shown once).")
 
@@ -153,6 +153,7 @@ def setup_data_dirs():
     step(3, 3, "Local data folders")
     storage.ensure_dirs()
     print(f"Created (or confirmed) local data folders under: {cfg.DATA_DIR}")
+    print(f"  - voice_samples.md  paste 2-5 real writing samples to teach the voice")
     print(f"  - style_guide.md   your voice guide (open it any time with /style)")
     print(f"  - corpus/          pinned posts used to learn your voice over time")
     print(f"  - drafts/          every post you've generated, past and present")
@@ -161,7 +162,7 @@ def setup_data_dirs():
 
 def run():
     print("=" * 60)
-    print(" Founder Voice Agent — Guided Setup")
+    print(" Voice Agent — Guided Setup")
     print("=" * 60)
     print("This will take a few minutes. Everything set up here is free —")
     print("no subscriptions, no API keys, no paid services anywhere.")
@@ -178,8 +179,8 @@ def run():
     line()
     print("Start the agent with:")
     print("  python3 main.py")
-    print("\nThen just type a raw take on a topic to draft your first post, or")
-    print("type /help to see everything it can do.")
+    print("\nThen add writing samples with /samples or /sample-paste, type a raw take on a topic to")
+    print("draft your first post, or type /help to see everything it can do.")
 
 
 if __name__ == "__main__":

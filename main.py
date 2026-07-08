@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Founder Voice Agent — a terminal-based, zero-cost thought-leadership tool.
+Voice Agent — a terminal-based, zero-cost writing tool.
 
 Talk to it like a chat, or use slash commands for anything that changes state.
 Nothing publishes, and nothing rewrites your style guide, without you
@@ -30,6 +30,8 @@ Commands:
   /redo-opening         Rewrite just the opening so the position leads
   /more-technical       Raise technical precision
   /less-hedging         Remove unnecessary qualifiers
+  /samples              Open the voice samples file in your editor
+  /sample-paste         Paste a writing sample directly into the terminal
   /style                Open the style guide in your editor
   /pin                  Mark this draft to be added to the style corpus on publish
   /distill              Propose an update to the style guide from pinned posts (needs your approval)
@@ -55,19 +57,21 @@ def cmd_post(notes: str):
     if not notes.strip():
         print("Usage: /post <your raw take on a topic>")
         return
+    voice_samples = storage.load_voice_samples()
     style_text = storage.load_style_guide()
     corpus_examples = storage.get_recent_corpus_texts()
     print("Drafting..." if not DRY_RUN else "Drafting (dry run)...")
     try:
         post = llm.generate_post(cfg.load_config()["ollama_url"], cfg.load_config()["ollama_model"],
-                                  notes, style_text, corpus_examples, dry_run=DRY_RUN)
+                                  notes, voice_samples, style_text, corpus_examples,
+                                  dry_run=DRY_RUN)
     except llm.OllamaUnavailable as e:
         print(f"Error: {e}")
         return
     draft = storage.new_draft(notes)
     draft.update(post)
     storage.save_draft(draft)
-    storage.log_session("founder", f"/post {notes}")
+    storage.log_session("user", f"/post {notes}")
     storage.log_session("agent", f"drafted {draft['id']}")
     print_draft(draft)
 
@@ -77,18 +81,20 @@ def cmd_revise(verb: str):
     if not draft:
         print("No draft open. Use /post <notes> first.")
         return
+    voice_samples = storage.load_voice_samples()
     style_text = storage.load_style_guide()
     print(f"Applying '{verb}'..." if not DRY_RUN else f"Applying '{verb}' (dry run)...")
     try:
         new_body = llm.revise(cfg.load_config()["ollama_url"], cfg.load_config()["ollama_model"],
-                               draft["body_markdown"], verb, style_text, dry_run=DRY_RUN)
+                               draft["body_markdown"], verb, voice_samples, style_text,
+                               dry_run=DRY_RUN)
     except llm.OllamaUnavailable as e:
         print(f"Error: {e}")
         return
     draft["body_markdown"] = new_body
     draft["revisions"].append({"verb": verb})
     storage.save_draft(draft)
-    storage.log_session("founder", f"/{verb}")
+    storage.log_session("user", f"/{verb}")
     print_draft(draft)
 
 
@@ -109,6 +115,37 @@ def cmd_style():
         subprocess.call([editor, path])
     except FileNotFoundError:
         print(f"Couldn't launch '{editor}'. Open this file manually:\n{path}")
+
+
+def cmd_samples():
+    editor = os.environ.get("EDITOR", "nano")
+    path = storage.VOICE_SAMPLES_PATH
+    storage.ensure_dirs()
+    print(f"Opening {path} in {editor}...")
+    try:
+        subprocess.call([editor, path])
+    except FileNotFoundError:
+        print(f"Couldn't launch '{editor}'. Open this file manually:\n{path}")
+
+
+def cmd_sample_paste():
+    print("Paste a real writing sample. End input with a line containing only /done.")
+    lines = []
+    while True:
+        try:
+            line = input("")
+        except (EOFError, KeyboardInterrupt):
+            print("\nCancelled.")
+            return
+        if line.strip() == "/done":
+            break
+        lines.append(line)
+    sample_text = "\n".join(lines).strip()
+    if not sample_text:
+        print("No sample captured.")
+        return
+    storage.append_voice_sample(sample_text)
+    print("Saved to voice samples.")
 
 
 def cmd_pin():
@@ -168,7 +205,7 @@ def cmd_publish():
 
     draft["wp_status"] = "published"
     storage.save_draft(draft)
-    storage.log_session("founder", "/publish -> yes")
+    storage.log_session("user", "/publish -> yes")
     print(f"Published: {pub_result['link']}")
 
     if draft.get("pin_requested"):
@@ -245,6 +282,10 @@ def dispatch(line: str):
             cmd_review()
         elif command == "style":
             cmd_style()
+        elif command == "samples":
+            cmd_samples()
+        elif command == "sample-paste":
+            cmd_sample_paste()
         elif command == "pin":
             cmd_pin()
         elif command == "publish":
@@ -258,7 +299,7 @@ def dispatch(line: str):
         return True
 
     # Plain text, no leading slash.
-    storage.log_session("founder", line)
+    storage.log_session("user", line)
     if storage.get_current_draft() is None:
         cmd_post(line)
     else:
@@ -278,13 +319,13 @@ def main():
             print("You can run `python3 setup.py` any time before publishing.")
 
     storage.ensure_dirs()
-    print("Founder Voice Agent. Type a raw take to start a draft, or /help for commands.")
+    print("Voice Agent. Type a raw take to start a draft, or /help for commands.")
     if DRY_RUN:
         print("(running in --dry-run mode: no calls to Ollama or WordPress)")
 
     while True:
         try:
-            line = input("\nfounder> ")
+            line = input("\nwriter> ")
         except (EOFError, KeyboardInterrupt):
             print()
             break

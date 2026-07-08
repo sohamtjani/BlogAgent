@@ -5,10 +5,13 @@
   "sources": [],
   "title": "[DRY RUN] A Founder's Take, Structured Into a Post",
   "meta_description": "Placeholder summary standing in for the model's real output.",
-  "body_markdown": "## The Position\n\n> Small modular reactors get overhyped on cost timelines; the real bottleneck is licensing throughput, not reactor design.\n\n## Why It Matters\n\n- Reasoning point one\n- Reasoning point two\n\n## Implications\n\nWhat this means for the field, stated plainly \u2014 no company plug, no call-to-action.\n\n[DRY RUN: would have applied 'tighten' here]",
+  "body_markdown": "## The Position\n\n> Small modular reactors get overhyped on cost timelines; the real bottleneck is licensing throughput, not reactor design.\n\n## Why It Matters\n\n- Reasoning point one\n- Reasoning point two\n\n## Implications\n\nWhat this means for the field, stated plainly \u2014 no company plug, no call-to-action.\n\n[DRY RUN: would have applied 'tighten' here]\n\n[DRY RUN: would have applied 'expand' here]",
   "revisions": [
     {
       "verb": "tighten"
+    },
+    {
+      "verb": "expand"
     }
   ],
   "wp_post_id": 0,

@@ -1,5 +1,6 @@
 """
 The whole "database" for this tool is plain local files:
+  - voice_samples.md        pasted examples of the user's past writing
   - style_guide.md          human-readable, hand-editable voice doc
   - style_guide_backups/    timestamped snapshot before every approved change
   - corpus/                 pinned "sounds like me" posts, used as few-shot examples
@@ -19,6 +20,7 @@ from datetime import datetime, timezone
 
 from config import DATA_DIR
 
+VOICE_SAMPLES_PATH = os.path.join(DATA_DIR, "voice_samples.md")
 STYLE_GUIDE_PATH = os.path.join(DATA_DIR, "style_guide.md")
 STYLE_GUIDE_BACKUP_DIR = os.path.join(DATA_DIR, "style_guide_backups")
 CORPUS_DIR = os.path.join(DATA_DIR, "corpus")
@@ -26,33 +28,56 @@ DRAFTS_DIR = os.path.join(DATA_DIR, "drafts")
 SESSIONS_DIR = os.path.join(DATA_DIR, "sessions")
 CURRENT_DRAFT_POINTER = os.path.join(DATA_DIR, ".current_draft")
 
-FOUNDER_OVERRIDES_HEADER = "## Founder Overrides"
+MANUAL_OVERRIDES_HEADER = "## Manual Overrides"
+LEGACY_FOUNDER_OVERRIDES_HEADER = "## Founder Overrides"
 AUTO_OBSERVED_HEADER = "## Auto-Observed Patterns"
 
 DEFAULT_STYLE_GUIDE = f"""# Voice & Style Guide
 
 This file drives how every post is written. It is never overwritten silently —
 the "Auto-Observed Patterns" section only changes when you approve an update
-via `/distill`. The "Founder Overrides" section is yours; the agent never
+via `/distill`. The "Manual Overrides" section is yours; the agent never
 touches it.
 
-{FOUNDER_OVERRIDES_HEADER}
+{MANUAL_OVERRIDES_HEADER}
 (Nothing here yet. Add your own rules any time, e.g. "never use the word
 'leverage'" or "always open with the contrarian claim, not the setup." These
 always win over anything in Auto-Observed Patterns below.)
 
 {AUTO_OBSERVED_HEADER}
 (No real samples yet, so the agent is using this placeholder default: direct,
-technical, opinionated, first-person, comfortable with jargon a nuclear-industry
-practitioner would know, short paragraphs, states a contrarian view plainly
-rather than hedging it. Replace this by pinning a few real posts and running
-`/distill` once you have some published under your voice.)
+clear, opinionated when appropriate, comfortable with the domain vocabulary
+shown in the writing samples, short paragraphs, and willing to state a real view
+plainly instead of hedging by default. Replace this by pinning a few real posts
+and running `/distill` once you have some published under this voice.)
+"""
+
+DEFAULT_VOICE_SAMPLES = """# Voice Samples
+
+Paste 2-5 examples of the person's real past writing here so the agent can
+study tone, style, structure, sentence rhythm, vocabulary, and typical length.
+These are style references only. The agent should not copy their claims or
+phrasing into new drafts.
+
+Use this format:
+
+## Sample 1
+Paste a real example here.
+
+## Sample 2
+Paste a second real example here.
+
+## Sample 3
+Optional third example.
 """
 
 
 def ensure_dirs():
     for d in (DATA_DIR, STYLE_GUIDE_BACKUP_DIR, CORPUS_DIR, DRAFTS_DIR, SESSIONS_DIR):
         os.makedirs(d, exist_ok=True)
+    if not os.path.exists(VOICE_SAMPLES_PATH):
+        with open(VOICE_SAMPLES_PATH, "w", encoding="utf-8") as f:
+            f.write(DEFAULT_VOICE_SAMPLES)
     if not os.path.exists(STYLE_GUIDE_PATH):
         with open(STYLE_GUIDE_PATH, "w", encoding="utf-8") as f:
             f.write(DEFAULT_STYLE_GUIDE)
@@ -66,11 +91,43 @@ def load_style_guide() -> str:
         return f.read()
 
 
+def load_voice_samples_text() -> str:
+    ensure_dirs()
+    with open(VOICE_SAMPLES_PATH, "r", encoding="utf-8") as f:
+        return f.read()
+
+
+def load_voice_samples() -> list:
+    text = load_voice_samples_text()
+    matches = re.findall(r"^##\s+Sample\s+\d+\s*\n(.*?)(?=^##\s+Sample\s+\d+\s*\n|\Z)",
+                         text, flags=re.MULTILINE | re.DOTALL)
+    samples = [m.strip() for m in matches if m.strip()]
+    return [s for s in samples if "Paste a real example here." not in s]
+
+
+def append_voice_sample(sample_text: str):
+    ensure_dirs()
+    current = load_voice_samples_text()
+    headings = re.findall(r"^##\s+Sample\s+(\d+)\s*$", current, flags=re.MULTILINE)
+    next_num = (max(int(n) for n in headings) + 1) if headings else 1
+    with open(VOICE_SAMPLES_PATH, "a", encoding="utf-8") as f:
+        if not current.endswith("\n"):
+            f.write("\n")
+        f.write(f"\n## Sample {next_num}\n{sample_text.strip()}\n")
+
+
 def split_style_guide(text: str) -> dict:
-    """Split into founder-overrides vs auto-observed sections (best-effort)."""
+    """Split into manual-overrides vs auto-observed sections (best-effort)."""
     overrides, auto = "", ""
-    if FOUNDER_OVERRIDES_HEADER in text:
-        after_overrides = text.split(FOUNDER_OVERRIDES_HEADER, 1)[1]
+    if MANUAL_OVERRIDES_HEADER in text:
+        after_overrides = text.split(MANUAL_OVERRIDES_HEADER, 1)[1]
+        if AUTO_OBSERVED_HEADER in after_overrides:
+            overrides, auto_part = after_overrides.split(AUTO_OBSERVED_HEADER, 1)
+            auto = auto_part
+        else:
+            overrides = after_overrides
+    elif LEGACY_FOUNDER_OVERRIDES_HEADER in text:
+        after_overrides = text.split(LEGACY_FOUNDER_OVERRIDES_HEADER, 1)[1]
         if AUTO_OBSERVED_HEADER in after_overrides:
             overrides, auto_part = after_overrides.split(AUTO_OBSERVED_HEADER, 1)
             auto = auto_part
@@ -89,7 +146,7 @@ def backup_style_guide():
 
 
 def apply_auto_observed_update(new_auto_observed_text: str):
-    """Only called after the founder explicitly approves a /distill proposal."""
+    """Only called after the user explicitly approves a /distill proposal."""
     backup_style_guide()
     current = load_style_guide()
     parts = split_style_guide(current)
@@ -97,18 +154,18 @@ def apply_auto_observed_update(new_auto_observed_text: str):
         "# Voice & Style Guide\n\n"
         "This file drives how every post is written. It is never overwritten silently —\n"
         "the \"Auto-Observed Patterns\" section only changes when you approve an update\n"
-        "via `/distill`. The \"Founder Overrides\" section is yours; the agent never\n"
+        "via `/distill`. The \"Manual Overrides\" section is yours; the agent never\n"
         "touches it.\n\n"
-        f"{FOUNDER_OVERRIDES_HEADER}\n{parts['overrides']}\n\n"
+        f"{MANUAL_OVERRIDES_HEADER}\n{parts['overrides']}\n\n"
         f"{AUTO_OBSERVED_HEADER}\n{new_auto_observed_text.strip()}\n"
     )
     with open(STYLE_GUIDE_PATH, "w", encoding="utf-8") as f:
         f.write(new_content)
 
 
-def append_founder_override(note: str):
-    """/pin-style manual rule add — takes effect immediately, no approval needed
-    since the founder is directly authoring it himself."""
+def append_manual_override(note: str):
+    """Direct manual rule add — takes effect immediately because the user is
+    explicitly authoring it themselves."""
     ensure_dirs()
     current = load_style_guide()
     parts = split_style_guide(current)
@@ -117,14 +174,17 @@ def append_founder_override(note: str):
         "# Voice & Style Guide\n\n"
         "This file drives how every post is written. It is never overwritten silently —\n"
         "the \"Auto-Observed Patterns\" section only changes when you approve an update\n"
-        "via `/distill`. The \"Founder Overrides\" section is yours; the agent never\n"
+        "via `/distill`. The \"Manual Overrides\" section is yours; the agent never\n"
         "touches it.\n\n"
-        f"{FOUNDER_OVERRIDES_HEADER}\n{new_overrides}\n\n"
+        f"{MANUAL_OVERRIDES_HEADER}\n{new_overrides}\n\n"
         f"{AUTO_OBSERVED_HEADER}\n{parts['auto_observed']}\n"
     )
     backup_style_guide()
     with open(STYLE_GUIDE_PATH, "w", encoding="utf-8") as f:
         f.write(new_content)
+
+
+append_founder_override = append_manual_override
 
 
 # ---------------------------------------------------------------------- corpus

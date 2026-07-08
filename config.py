@@ -1,7 +1,7 @@
 """
 Config loading — a single local JSON file, no environment/server config needed.
 Zero cost: nothing here talks to a paid service. Ollama runs locally; WordPress
-is whatever site the founder already owns/hosts.
+is whatever site the user already owns/hosts.
 """
 import json
 import os
