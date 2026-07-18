@@ -18,6 +18,7 @@ import requests
 import config as cfg
 import storage
 import wordpress
+import research
 
 
 def line():
@@ -64,7 +65,7 @@ def pull_model(model: str) -> bool:
 
 
 def setup_ollama(current_cfg: dict) -> dict:
-    step(1, 3, "Local AI model (Ollama)")
+    step(1, 4, "Local AI model (Ollama)")
     print("This tool writes drafts using a model that runs entirely on your own")
     print("computer via Ollama — no API key, no per-post cost, nothing sent to a")
     print("third-party AI service.\n")
@@ -106,7 +107,7 @@ def setup_ollama(current_cfg: dict) -> dict:
 
 
 def setup_wordpress(current_cfg: dict) -> dict:
-    step(2, 3, "WordPress publishing (optional right now)")
+    step(2, 4, "WordPress publishing (optional right now)")
     print("Posts get created as WordPress drafts and only go live when you")
     print("explicitly confirm with /publish. This uses WordPress's built-in")
     print("Application Passwords feature — free, no plugin required.\n")
@@ -149,8 +150,39 @@ def setup_wordpress(current_cfg: dict) -> dict:
     return current_cfg
 
 
+def setup_searxng(current_cfg: dict) -> dict:
+    step(3, 4, "Web research for /more-technical")
+    print("The /more-technical command can use live web sources through a local")
+    print("SearXNG instance. SearXNG is free, open source, and runs directly on")
+    print("your machine — Docker is not required. The README has the complete setup.\n")
+    default_url = current_cfg.get("searxng_url", "http://localhost:8888")
+    url = input(f"SearXNG URL [{default_url}]: ").strip() or default_url
+    default_dir = current_cfg.get("searxng_source_dir", "")
+    source_dir = input(f"SearXNG source folder [{default_dir}]: ").strip() or default_dir
+    settings_dir = current_cfg.get("searxng_settings_dir", "")
+    print("Preparing the local SearXNG settings and starting it...")
+    command = "mise exec python@3.11 -- make run"
+    _, message = research.ensure_bare_metal_instance(url, source_dir, command, settings_dir)
+    print(message)
+    print("Testing SearXNG search API...")
+    if research.check_connection(url):
+        print("Connected. Research-backed technical revisions are ready.")
+        current_cfg["searxng_url"] = url
+    else:
+        print("Couldn't reach a JSON-enabled SearXNG API at that address. The rest of")
+        print("the app will work normally; re-run setup once SearXNG is running.")
+        current_cfg["searxng_url"] = url
+    current_cfg["searxng_autostart"] = True
+    current_cfg["searxng_start_mode"] = "bare_metal"
+    current_cfg["searxng_source_dir"] = source_dir
+    current_cfg["searxng_launch_command"] = command
+    current_cfg["searxng_settings_dir"] = settings_dir
+    print("Founder Voice will start SearXNG from this folder automatically at launch.")
+    return current_cfg
+
+
 def setup_data_dirs():
-    step(3, 3, "Local data folders")
+    step(4, 4, "Local data folders")
     storage.ensure_dirs()
     print(f"Created (or confirmed) local data folders under: {cfg.DATA_DIR}")
     print(f"  - style_guide.md   your voice guide (open it any time with /style)")
@@ -169,6 +201,7 @@ def run():
     current_cfg = cfg.load_config()
     current_cfg = setup_ollama(current_cfg)
     current_cfg = setup_wordpress(current_cfg)
+    current_cfg = setup_searxng(current_cfg)
     cfg.save_config(current_cfg)
     setup_data_dirs()
 

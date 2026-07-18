@@ -205,6 +205,18 @@ def save_draft(draft: dict):
         json.dump(draft, f, indent=2)
 
 
+def add_research_run(draft: dict, queries: list, sources: list, used_source_ids: list,
+                     command: str = "more-technical"):
+    """Persist the evidence behind a research-backed revision with its draft."""
+    draft.setdefault("research_runs", []).append({
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "command": command,
+        "queries": queries,
+        "sources": sources,
+        "used_source_ids": used_source_ids,
+    })
+
+
 def load_draft(draft_id: str) -> dict:
     with open(draft_path(draft_id), "r", encoding="utf-8") as f:
         return json.load(f)

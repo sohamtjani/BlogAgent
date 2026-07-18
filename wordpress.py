@@ -4,6 +4,8 @@ WordPress publishing via its built-in REST API + a free Application Password
 drafts — nothing ever goes live without an explicit /publish confirm.
 """
 import base64
+import html
+import re
 
 import requests
 
@@ -23,16 +25,24 @@ def markdown_to_html(md: str) -> str:
     for line in md.splitlines():
         s = line.strip()
         if s.startswith("## "):
-            lines_out.append(f"<h2>{s[3:].strip()}</h2>")
+            lines_out.append(f"<h2>{_inline_markdown(s[3:].strip())}</h2>")
         elif s.startswith("# "):
-            lines_out.append(f"<h1>{s[2:].strip()}</h1>")
+            lines_out.append(f"<h1>{_inline_markdown(s[2:].strip())}</h1>")
         elif s.startswith("- "):
-            lines_out.append(f"<li>{s[2:].strip()}</li>")
+            lines_out.append(f"<li>{_inline_markdown(s[2:].strip())}</li>")
         elif s == "":
             lines_out.append("")
         else:
-            lines_out.append(f"<p>{s}</p>")
+            lines_out.append(f"<p>{_inline_markdown(s)}</p>")
     return "\n".join(lines_out)
+
+
+def _inline_markdown(text: str) -> str:
+    escaped = html.escape(text)
+    return re.sub(
+        r"\[([^\]]+)\]\((https?://[^\s)]+)\)",
+        r'<a href="\2" rel="noopener noreferrer">\1</a>', escaped,
+    )
 
 
 def test_connection(wp_url: str, wp_user: str, wp_app_password: str) -> bool:

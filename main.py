@@ -16,6 +16,7 @@ import sys
 
 import config as cfg
 import llm
+import research
 import storage
 import wordpress
 
@@ -28,7 +29,7 @@ Commands:
   /tighten              Cut length, remove hedging/filler
   /expand               Add another layer of reasoning/example
   /redo-opening         Rewrite just the opening so the position leads
-  /more-technical       Raise technical precision
+  /more-technical       Research the current stance, then deepen it with cited web sources
   /less-hedging         Remove unnecessary qualifiers
   /style                Open the style guide in your editor
   /pin                  Mark this draft to be added to the style corpus on publish
@@ -55,17 +56,47 @@ def cmd_post(notes: str):
     if not notes.strip():
         print("Usage: /post <your raw take on a topic>")
         return
+    c = cfg.load_config()
     style_text = storage.load_style_guide()
     corpus_examples = storage.get_recent_corpus_texts()
-    print("Drafting..." if not DRY_RUN else "Drafting (dry run)...")
+    queries, sources = [], []
+    print("Researching the founder's take..." if not DRY_RUN else "Researching the founder's take (dry run)...")
     try:
-        post = llm.generate_post(cfg.load_config()["ollama_url"], cfg.load_config()["ollama_model"],
-                                  notes, style_text, corpus_examples, dry_run=DRY_RUN)
-    except llm.OllamaUnavailable as e:
+        queries = llm.build_initial_research_queries(c["ollama_url"], c["ollama_model"], notes, dry_run=DRY_RUN)
+        sources = research.gather_research(
+            queries, c["searxng_url"], max_sources=int(c.get("research_max_sources", 5)),
+            timeout=int(c.get("research_timeout_seconds", 15)), dry_run=DRY_RUN,
+        )
+    except (llm.OllamaUnavailable, research.ResearchUnavailable, RuntimeError) as e:
+        print(f"Research unavailable: {e}")
+    if not sources:
+        if DRY_RUN:
+            print("No simulated sources were returned. No draft was created.")
+            return
+        answer = input("Draft without web research instead? [y/N] ").strip().lower()
+        if answer != "y":
+            print("No draft was created.")
+            return
+    else:
+        print("\n--- Supporting sources ---")
+        for source in sources:
+            print(f"[{source['id']}] {source['title']}\n    {source['url']}")
+        if not DRY_RUN:
+            answer = input("Use these sources to draft the post? [y/N] ").strip().lower()
+            if answer != "y":
+                print("No draft was created.")
+                return
+    print("Drafting with cited research..." if sources and not DRY_RUN else "Drafting...")
+    try:
+        post = llm.generate_post(c["ollama_url"], c["ollama_model"], notes, style_text,
+                                  corpus_examples, sources, dry_run=DRY_RUN)
+    except (llm.OllamaUnavailable, RuntimeError) as e:
         print(f"Error: {e}")
         return
     draft = storage.new_draft(notes)
     draft.update(post)
+    if sources:
+        storage.add_research_run(draft, queries, sources, post["used_source_ids"], command="post")
     storage.save_draft(draft)
     storage.log_session("founder", f"/post {notes}")
     storage.log_session("agent", f"drafted {draft['id']}")
@@ -90,6 +121,85 @@ def cmd_revise(verb: str):
     storage.save_draft(draft)
     storage.log_session("founder", f"/{verb}")
     print_draft(draft)
+
+
+def cmd_more_technical():
+    """Run a source-backed technical revision while keeping the founder's stance."""
+    draft = storage.get_current_draft()
+    if not draft:
+        print("No draft open. Use /post <notes> first.")
+        return
+    c = cfg.load_config()
+    searxng_url = c.get("searxng_url", "").strip()
+    if not searxng_url:
+        print("Web research isn't configured. Run `python3 setup.py` to add SearXNG.")
+        return
+
+    print("Creating focused research queries..." if not DRY_RUN else "Creating research queries (dry run)...")
+    try:
+        queries = llm.build_research_queries(c["ollama_url"], c["ollama_model"], draft, dry_run=DRY_RUN)
+        sources = research.gather_research(
+            queries, searxng_url,
+            max_sources=int(c.get("research_max_sources", 5)),
+            timeout=int(c.get("research_timeout_seconds", 15)), dry_run=DRY_RUN,
+        )
+    except (llm.OllamaUnavailable, research.ResearchUnavailable, RuntimeError) as exc:
+        print(f"Error: {exc}")
+        return
+    if not sources:
+        print("No usable research sources were retrieved. Your draft was not changed.")
+        return
+
+    print("\n--- Research sources ---")
+    for source in sources:
+        print(f"[{source['id']}] {source['title']}\n    {source['url']}")
+    if not DRY_RUN:
+        answer = input("Use these sources to revise the draft? [y/N] ").strip().lower()
+        if answer != "y":
+            print("Not revised. Your draft was left unchanged.")
+            return
+
+    print("Deepening the technical argument with cited sources..." if not DRY_RUN else "Revising with research (dry run)...")
+    try:
+        revision = llm.revise_with_research(
+            c["ollama_url"], c["ollama_model"], draft, storage.load_style_guide(), sources,
+            dry_run=DRY_RUN,
+        )
+    except (llm.OllamaUnavailable, RuntimeError) as exc:
+        print(f"Error: {exc}")
+        return
+    draft["body_markdown"] = revision["body_markdown"]
+    storage.add_research_run(draft, queries, sources, revision["used_source_ids"])
+    draft["revisions"].append({"verb": "more-technical", "source_ids": revision["used_source_ids"]})
+    storage.save_draft(draft)
+    storage.log_session("founder", "/more-technical")
+    print_draft(draft)
+
+
+def start_research_service():
+    """Best-effort launch for the optional local research service."""
+    if DRY_RUN:
+        return
+    c = cfg.load_config()
+    if not c.get("searxng_autostart", True):
+        return
+    url = c.get("searxng_url", "").strip()
+    if not url:
+        return
+    if c.get("searxng_start_mode", "bare_metal") == "docker":
+        ok, message = research.ensure_local_instance(
+            url, c.get("searxng_container_name", "founder-voice-searxng"),
+        )
+    else:
+        ok, message = research.ensure_bare_metal_instance(
+            url, c.get("searxng_source_dir", ""),
+            c.get("searxng_launch_command", "mise exec python@3.11 -- make run"),
+            c.get("searxng_settings_dir", ""),
+        )
+    if ok:
+        print(f"Research service: {message}")
+    else:
+        print(f"Research service unavailable: {message}")
 
 
 def cmd_review():
@@ -239,6 +349,8 @@ def dispatch(line: str):
 
         if command == "post":
             cmd_post(rest)
+        elif command == "more-technical":
+            cmd_more_technical()
         elif command in llm.REVISION_VERBS:
             cmd_revise(command)
         elif command == "review":
@@ -269,15 +381,19 @@ def dispatch(line: str):
 
 def main():
     if not cfg.config_exists():
-        print("No config found yet.")
-        run_setup = input("Run the guided setup now? [Y/n] ").strip().lower()
-        if run_setup in ("", "y", "yes"):
-            import setup as setup_module
-            setup_module.run()
+        if DRY_RUN:
+            print("No config found; using built-in simulated services for this dry run.")
         else:
-            print("You can run `python3 setup.py` any time before publishing.")
+            print("No config found yet.")
+            run_setup = input("Run the guided setup now? [Y/n] ").strip().lower()
+            if run_setup in ("", "y", "yes"):
+                import setup as setup_module
+                setup_module.run()
+            else:
+                print("You can run `python3 setup.py` any time before publishing.")
 
     storage.ensure_dirs()
+    start_research_service()
     print("Founder Voice Agent. Type a raw take to start a draft, or /help for commands.")
     if DRY_RUN:
         print("(running in --dry-run mode: no calls to Ollama or WordPress)")

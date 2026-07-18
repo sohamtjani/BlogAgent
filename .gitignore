@@ -3,3 +3,4 @@ __pycache__/
 config.json
 data/
 .DS_Store
+vendor/searxng/
