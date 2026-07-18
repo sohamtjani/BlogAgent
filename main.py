@@ -190,16 +190,19 @@ def start_research_service():
     url = c.get("searxng_url", "").strip()
     if not url:
         return
-    if c.get("searxng_start_mode", "bare_metal") == "docker":
-        ok, message = research.ensure_local_instance(
-            url, c.get("searxng_container_name", "founder-voice-searxng"),
-        )
-    else:
-        ok, message = research.ensure_bare_metal_instance(
-            url, c.get("searxng_source_dir", ""),
-            c.get("searxng_launch_command", "local/py3/bin/granian --interface wsgi --host 127.0.0.1 --port 8888 searx.webapp:app"),
-            c.get("searxng_settings_dir", ""),
-        )
+    try:
+        if c.get("searxng_start_mode", "bare_metal") == "docker":
+            ok, message = research.ensure_local_instance(
+                url, c.get("searxng_container_name", "founder-voice-searxng"),
+            )
+        else:
+            ok, message = research.ensure_bare_metal_instance(
+                url, c.get("searxng_source_dir", ""),
+                c.get("searxng_launch_command", "local/py3/bin/granian --interface wsgi --host 127.0.0.1 --port 8888 searx.webapp:app"),
+                c.get("searxng_settings_dir", ""),
+            )
+    except Exception as exc:
+        ok, message = False, f"Unexpected startup issue: {exc}"
     if ok:
         print(f"Research service: {message}")
     else:

@@ -38,6 +38,14 @@ def load_config() -> dict:
         cfg = json.load(f)
     merged = dict(DEFAULT_CONFIG)
     merged.update(cfg)
+    # Configurations created before the direct Granian launcher used `make run`,
+    # which reinstalls SearXNG on every start. Upgrade them in memory so existing
+    # users get the fixed behavior without re-running setup.
+    legacy_command = "mise exec python@3.11 -- make run"
+    if merged.get("searxng_launch_command") == legacy_command:
+        merged["searxng_launch_command"] = DEFAULT_CONFIG["searxng_launch_command"]
+    if not merged.get("searxng_settings_dir") and merged.get("searxng_settings_path"):
+        merged["searxng_settings_dir"] = os.path.dirname(merged["searxng_settings_path"])
     return merged
 
 
