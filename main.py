@@ -14,6 +14,10 @@ import shlex
 import subprocess
 import sys
 
+from runtime import ensure_project_runtime
+
+ensure_project_runtime(__file__)
+
 import config as cfg
 import llm
 import research

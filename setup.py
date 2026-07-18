@@ -13,6 +13,10 @@ import subprocess
 import sys
 import time
 
+from runtime import ensure_project_runtime
+
+ensure_project_runtime(__file__)
+
 import requests
 
 import config as cfg

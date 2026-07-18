@@ -15,9 +15,13 @@ Don't read this section as documentation — run it instead. The real guide is
 an interactive script that checks each step live:
 
 ```bash
-pip install -r requirements.txt --break-system-packages   # one-time, free
 python3 setup.py
 ```
+
+That command creates a private `.venv` folder inside the project and installs
+the required Python packages there automatically. It never modifies your
+Homebrew or system Python, so `--break-system-packages`, `pip install`, and
+manual virtual-environment activation are not needed.
 
 `setup.py` will walk you through, in order:
 1. Confirming Ollama is installed and running (with exact install steps if not)
@@ -33,7 +37,7 @@ you're ready to connect publishing.
 ## Day to day use
 
 ```bash
-python3 main.py
+.venv/bin/python main.py
 ```
 
 Then just type a raw take, e.g.:
