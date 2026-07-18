@@ -143,8 +143,9 @@ python3 main.py
 ```
 
 At launch, BlogAgent checks `http://localhost:8888`. If SearXNG is already
-running, it reuses it. If not, it starts SearXNG through its local Python 3.11
-toolchain from `vendor/searxng` and
+running, it reuses it. If not, it starts SearXNG directly from the already
+installed local runtime in `vendor/searxng`; it does not rerun installation or
+download packages.
 waits until the local JSON search API is ready. Then `/more-technical` can
 research and cite web sources.
 
@@ -154,7 +155,7 @@ Run these checks in the BlogAgent folder:
 
 ```bash
 test -d vendor/searxng && echo "SearXNG folder found" || echo "Run step 3 above"
-cd vendor/searxng && mise exec python@3.11 -- make run
+cd vendor/searxng && local/py3/bin/granian --interface wsgi --host 127.0.0.1 --port 8888 searx.webapp:app
 ```
 
 Leave that Terminal window open. In a second Terminal window, run:
@@ -170,7 +171,7 @@ the address is already in use, stop the process using port 8080 with:
 lsof -ti :8888 | xargs kill
 ```
 
-Then repeat `cd vendor/searxng && mise exec python@3.11 -- make run`. Once the curl command works, stop
+Then repeat the direct `granian` command above. Once the curl command works, stop
 the manual server with Control-C and launch `python3 main.py`; BlogAgent will
 start it automatically thereafter.
 

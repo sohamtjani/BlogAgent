@@ -17,7 +17,7 @@ DEFAULT_CONFIG = {
     "searxng_autostart": True,
     "searxng_start_mode": "bare_metal",
     "searxng_source_dir": os.path.join(BASE_DIR, "vendor", "searxng"),
-    "searxng_launch_command": "mise exec python@3.11 -- make run",
+    "searxng_launch_command": "local/py3/bin/granian --interface wsgi --host 127.0.0.1 --port 8888 searx.webapp:app",
     "searxng_settings_dir": os.path.join(DATA_DIR, "searxng"),
     "research_max_sources": 5,
     "research_timeout_seconds": 15,

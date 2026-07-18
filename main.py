@@ -197,7 +197,7 @@ def start_research_service():
     else:
         ok, message = research.ensure_bare_metal_instance(
             url, c.get("searxng_source_dir", ""),
-            c.get("searxng_launch_command", "mise exec python@3.11 -- make run"),
+            c.get("searxng_launch_command", "local/py3/bin/granian --interface wsgi --host 127.0.0.1 --port 8888 searx.webapp:app"),
             c.get("searxng_settings_dir", ""),
         )
     if ok:

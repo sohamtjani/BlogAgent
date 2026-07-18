@@ -165,7 +165,7 @@ def setup_searxng(current_cfg: dict) -> dict:
     source_dir = input(f"SearXNG source folder [{default_dir}]: ").strip() or default_dir
     settings_dir = current_cfg.get("searxng_settings_dir", "")
     print("Preparing the local SearXNG settings and starting it...")
-    command = "mise exec python@3.11 -- make run"
+    command = "local/py3/bin/granian --interface wsgi --host 127.0.0.1 --port 8888 searx.webapp:app"
     _, message = research.ensure_bare_metal_instance(url, source_dir, command, settings_dir)
     print(message)
     print("Testing SearXNG search API...")
